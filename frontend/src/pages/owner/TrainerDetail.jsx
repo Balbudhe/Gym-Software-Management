@@ -13,6 +13,7 @@ import { statusBadge } from '../../components/common/Badge';
 import { formatDate, formatDateTime } from '../../utils/format';
 import AuthImage from '../../components/common/AuthImage';
 import AttendanceLocation from '../../components/attendance/AttendanceLocation';
+import AttendanceStatus from '../../components/attendance/AttendanceStatus';
 import { batchesToState, emptyBatchState, stateToBatches, validateBatchState } from '../../utils/batches';
 
 export default function TrainerDetail() {
@@ -183,7 +184,7 @@ export default function TrainerDetail() {
             ),
           },
           { key: 'hours', header: 'Working Hours', render: (r) => r.workingHours || '—' },
-          { key: 'status', header: 'Status', render: (r) => statusBadge(r.status) },
+          { key: 'status', header: 'Status', render: (r) => <AttendanceStatus row={r} /> },
           { key: 'photo', header: 'Photo', render: (r) => r.checkInPhoto ? <AuthImage src={r.checkInPhoto} className="h-10 w-10 rounded object-cover" /> : '—' },
         ]}
       />

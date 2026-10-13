@@ -4,8 +4,12 @@ const { parsePagination, paginated } = require('../utils/pagination');
 const { startOfDay, addDays, workingHours } = require('../utils/dates');
 const { expiryFilter } = require('../services/membershipService');
 const { toPublicPath } = require('../config/cloudStorage');
-const { normalizeBatches } = require('../utils/trainerBatches');
-const { attendanceDateKey } = require('../services/attendanceService');
+const { normalizeBatches, isSunday, formatMinutes } = require('../utils/trainerBatches');
+const {
+  attendanceDateKey,
+  closeStaleShifts,
+  statusForCompletedShift,
+} = require('../services/attendanceService');
 
 const trainerQuery = (req) => {
   const q = { ...req.branchFilter };
@@ -154,6 +158,11 @@ exports.removeTrainer = asyncHandler(async (req, res) => {
   });
   if (openShift) {
     openShift.checkOutTime = new Date();
+    const result = statusForCompletedShift(openShift, trainer.batches);
+    openShift.workedMinutes = result.workedMinutes;
+    openShift.requiredMinutes = result.requiredMinutes;
+    openShift.status = result.status;
+    openShift.absentReason = result.absentReason;
     await openShift.save();
   }
 
@@ -185,8 +194,9 @@ exports.trainerStats = asyncHandler(async (req, res) => {
   if (!trainer) return res.status(404).json({ message: 'Trainer not found' });
 
   const trainerId = trainer._id;
+  await closeStaleShifts(req.models, { trainerId });
   const today = startOfDay();
-  const monthAgo = addDays(today, -30);
+  const monthAgo = addDays(today, -29);
 
   const [admissions, assigned, active, expiring, expired, attendanceDocs] = await Promise.all([
     req.models.Member.countDocuments({ createdByTrainerId: trainerId }),
@@ -201,9 +211,11 @@ exports.trainerStats = asyncHandler(async (req, res) => {
   ]);
 
   const present = attendanceDocs.filter((a) => a.status === 'present' || a.status === 'late').length;
-  const attendancePercent = attendanceDocs.length
-    ? Math.round((present / 30) * 100)
-    : 0;
+  let workingDays = 0;
+  for (let offset = 0; offset < 30; offset += 1) {
+    if (!isSunday(addDays(today, -offset))) workingDays += 1;
+  }
+  const attendancePercent = workingDays ? Math.round((present / workingDays) * 100) : 0;
 
   const admissionHistory = await req.models.Member.find({ createdByTrainerId: trainerId })
     .sort({ createdAt: -1 })
@@ -219,7 +231,12 @@ exports.trainerStats = asyncHandler(async (req, res) => {
       .limit(30)
       .populate('branchId', 'name')
       .lean()
-  ).map((row) => ({ ...row, workingHours: workingHours(row.checkInTime, row.checkOutTime) }));
+  ).map((row) => ({
+    ...row,
+    workingHours: workingHours(row.checkInTime, row.checkOutTime),
+    requiredLabel: row.requiredMinutes != null ? formatMinutes(row.requiredMinutes) : null,
+    workedLabel: row.workedMinutes != null ? formatMinutes(row.workedMinutes) : null,
+  }));
 
   res.json({
     item: trainer,

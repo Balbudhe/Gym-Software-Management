@@ -3,10 +3,11 @@ import api from '../services/api';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { setTrainerOnShift } from '../services/shiftBridge';
+import { getPrecisePosition } from '../utils/geolocation';
 
 const TrainerShiftContext = createContext(null);
 
-const PING_INTERVAL_MS = 40000;
+const PING_INTERVAL_MS = 12000;
 
 export function TrainerShiftProvider({ children }) {
   const { user } = useAuth();
@@ -41,14 +42,14 @@ export function TrainerShiftProvider({ children }) {
   useEffect(() => {
     if (!onShift || !navigator.geolocation) return undefined;
 
-    const sendPing = async (coords) => {
+    const sendPing = async (coords, force = false) => {
       const now = Date.now();
-      if (now - lastPingAt.current < PING_INTERVAL_MS) return;
+      if (!force && now - lastPingAt.current < PING_INTERVAL_MS) return;
       lastPingAt.current = now;
       try {
         const { data } = await api.post('/trainer-attendance/location-ping', {
-          latitude: coords.latitude,
-          longitude: coords.longitude,
+          latitude: coords.latitude ?? coords.lat,
+          longitude: coords.longitude ?? coords.lng,
           accuracy: coords.accuracy,
         });
         setOutsideGym(!!data.outsideGym);
@@ -63,10 +64,14 @@ export function TrainerShiftProvider({ children }) {
       }
     };
 
+    getPrecisePosition({ timeoutMs: 18000, targetAccuracy: 40 })
+      .then((position) => sendPing(position, true))
+      .catch(() => {});
+
     const watchId = navigator.geolocation.watchPosition(
       (position) => sendPing(position.coords),
       () => {},
-      { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 25000 }
     );
 
     return () => navigator.geolocation.clearWatch(watchId);

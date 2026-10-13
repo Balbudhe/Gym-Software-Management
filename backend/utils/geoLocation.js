@@ -21,9 +21,11 @@ const parseAttendanceLocation = (body = {}) => {
 
 const reverseGeocode = async (lat, lng) => {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 4000);
+  const timer = setTimeout(() => controller.abort(), 6000);
   try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`;
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(
+      lat
+    )}&lon=${encodeURIComponent(lng)}&zoom=18&addressdetails=1`;
     const response = await fetch(url, {
       headers: { 'User-Agent': 'GymSoftwareWebsite/1.0 (trainer-attendance)' },
       signal: controller.signal,

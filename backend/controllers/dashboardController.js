@@ -1,7 +1,7 @@
 const asyncHandler = require('../utils/asyncHandler');
 const { expiryFilter } = require('../services/membershipService');
 const { addDays, IST, ymdIst, startOfIstDay } = require('../utils/dates');
-const { attendanceDateKey } = require('../services/attendanceService');
+const { attendanceDateKey, PRESENT_STATUSES } = require('../services/attendanceService');
 
 const ADMISSION_DAYS = 14;
 
@@ -38,7 +38,7 @@ exports.overview = asyncHandler(async (req, res) => {
     req.models.TrainerAttendance.countDocuments({
       ...req.branchFilter,
       date: today,
-      status: { $in: ['present', 'late'] },
+      status: { $in: PRESENT_STATUSES },
     }),
     req.models.Member.find(req.branchFilter)
       .sort({ createdAt: -1 })

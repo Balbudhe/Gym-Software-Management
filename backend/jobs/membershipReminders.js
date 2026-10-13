@@ -5,8 +5,10 @@ const { startOfDay, addDays } = require('../utils/dates');
 const { daysUntilExpiry } = require('../services/membershipService');
 const { safeSendMembershipReminderEmail } = require('../services/emailService');
 const { safeSendSms } = require('../services/smsService');
+const { safeSendWhatsAppReminder } = require('../services/whatsappService');
 const {
   REMINDER_KINDS,
+  formatExpiry,
   expiryKey,
   buildReminderContent,
   wrapHtml,
@@ -59,8 +61,13 @@ const processGym = async (gym) => {
     const smsSent = member.phone
       ? await safeSendSms({ to: member.phone, message: content.text })
       : false;
-
-    if (!emailSent && !smsSent && !member.email && !member.phone) continue;
+    const whatsappSent = member.phone
+      ? await safeSendWhatsAppReminder({
+          to: member.phone,
+          kind,
+          params: [member.name || 'Member', gym.name, formatExpiry(member.expiryDate)],
+        })
+      : false;
 
     member.reminderLog = member.reminderLog || [];
     member.reminderLog.push({
@@ -69,11 +76,12 @@ const processGym = async (gym) => {
       sentAt: new Date(),
       emailSent,
       smsSent,
+      whatsappSent,
     });
     await member.save();
     sent += 1;
     console.log(
-      `Membership reminder ${kind} sent to ${member.name} (${gym.slug}) email=${emailSent} sms=${smsSent}`
+      `Membership reminder ${kind} sent to ${member.name} (${gym.slug}) email=${emailSent} sms=${smsSent} whatsapp=${whatsappSent}`
     );
   }
   return sent;

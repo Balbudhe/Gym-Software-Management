@@ -1,14 +1,26 @@
 const asyncHandler = require('../utils/asyncHandler');
 const { parsePagination, paginated } = require('../utils/pagination');
 const { startOfDay, endOfDay, workingHours, workingHoursDecimal, formatTime } = require('../utils/dates');
-const { attendanceStatusForCheckIn, attendanceDateKey } = require('../services/attendanceService');
+const {
+  attendanceStatusForCheckIn,
+  attendanceDateKey,
+  statusForCompletedShift,
+  closeStaleShifts,
+  statusForMissingDay,
+} = require('../services/attendanceService');
 const { toPublicPath } = require('../config/cloudStorage');
-const { assertWithinAssignedHours, attendanceWindow } = require('../utils/trainerBatches');
+const {
+  assertWithinAssignedHours,
+  attendanceWindow,
+  requiredMinutesForBatch,
+  formatMinutes,
+} = require('../utils/trainerBatches');
 const {
   requireAttendanceLocation,
   parseAttendanceLocation,
   withAddress,
   isOutsideCheckInArea,
+  distanceMeters,
   GEOFENCE_METERS,
 } = require('../utils/geoLocation');
 const {
@@ -30,10 +42,13 @@ const decorate = (doc) => {
   item.workingHours = workingHours(item.checkInTime, item.checkOutTime);
   item.checkInLabel = formatTime(item.checkInTime);
   item.checkOutLabel = formatTime(item.checkOutTime);
+  item.requiredLabel = item.requiredMinutes != null ? formatMinutes(item.requiredMinutes) : null;
+  item.workedLabel = item.workedMinutes != null ? formatMinutes(item.workedMinutes) : null;
   return item;
 };
 
 exports.listAttendance = asyncHandler(async (req, res) => {
+  await closeStaleShifts(req.models, req.branchFilter);
   const { page, limit, skip } = parsePagination(req);
   const query = { ...req.branchFilter };
   if (req.query.trainerId) query.trainerId = req.query.trainerId;
@@ -86,7 +101,8 @@ exports.listAttendance = asyncHandler(async (req, res) => {
         checkOutLocation: null,
         lastKnownLocation: null,
         outsideGym: false,
-        status: 'absent',
+        status: statusForMissingDay(date),
+        absentReason: statusForMissingDay(date) === 'absent' ? 'no_check_in' : null,
         workingHours: null,
         checkInLabel: null,
         checkOutLabel: null,
@@ -118,6 +134,7 @@ exports.listAttendance = asyncHandler(async (req, res) => {
 exports.today = asyncHandler(async (req, res) => {
   const trainerId = req.user.role === 'TRAINER' ? req.user.trainerId : req.query.trainerId;
   if (!trainerId) return res.status(400).json({ message: 'Trainer not specified' });
+  await closeStaleShifts(req.models, { trainerId });
   const [item, trainer] = await Promise.all([
     req.models.TrainerAttendance.findOne({
       trainerId,
@@ -136,6 +153,8 @@ exports.today = asyncHandler(async (req, res) => {
     attendanceWindow: attendanceWindow(trainer?.batches || [], decorated),
     onShift,
     geofenceMeters: GEOFENCE_METERS,
+    trainerCreatedAt: trainer?.createdAt || null,
+    trainerJoiningDate: trainer?.joiningDate || null,
   });
 });
 
@@ -158,7 +177,8 @@ exports.checkIn = asyncHandler(async (req, res) => {
   }
 
   const photo = req.file ? toPublicPath('attendance', req.file.filename) : null;
-  const status = attendanceStatusForCheckIn(now, activeBatch);
+  const status = 'in_progress';
+  const lateCheckIn = attendanceStatusForCheckIn(now, activeBatch) === 'late';
   const checkInLocation = await requireAttendanceLocation(req.body);
 
   const tracking = {
@@ -167,6 +187,13 @@ exports.checkIn = asyncHandler(async (req, res) => {
     outsideGym: false,
     outsideAlertSentAt: null,
     logoutAlertSentAt: null,
+    batchName: activeBatch.name,
+    batchStartTime: activeBatch.startTime,
+    batchEndTime: activeBatch.endTime,
+    requiredMinutes: requiredMinutesForBatch(activeBatch),
+    workedMinutes: null,
+    lateCheckIn,
+    absentReason: null,
   };
 
   const item = existing
@@ -209,13 +236,17 @@ exports.checkOut = asyncHandler(async (req, res) => {
   }
   const trainer = await req.models.Trainer.findById(req.user.trainerId);
   if (!trainer) return res.status(404).json({ message: 'Trainer not found' });
-  assertWithinAssignedHours(trainer.batches, new Date(), 'Check-out');
   item.checkOutTime = new Date();
   item.checkOutPhoto = req.file ? toPublicPath('attendance', req.file.filename) : null;
   item.checkOutLocation = await requireAttendanceLocation(req.body);
   item.lastKnownLocation = item.checkOutLocation;
   item.lastLocationAt = item.checkOutTime;
   item.outsideGym = false;
+  const result = statusForCompletedShift(item, trainer.batches);
+  item.workedMinutes = result.workedMinutes;
+  item.requiredMinutes = result.requiredMinutes;
+  item.status = result.status;
+  item.absentReason = result.absentReason;
   await item.save();
   res.json({ item: decorate(item) });
 });
@@ -235,10 +266,14 @@ exports.locationPing = asyncHandler(async (req, res) => {
   }
 
   const now = new Date();
-  item.lastKnownLocation = parsed;
+  const moved = distanceMeters(item.lastKnownLocation, parsed);
+  const needsAddress =
+    !item.lastKnownLocation?.address || (moved != null && moved > 25);
+  const current = needsAddress ? await withAddress(parsed) : { ...parsed, address: item.lastKnownLocation?.address || '' };
+  item.lastKnownLocation = current;
   item.lastLocationAt = now;
 
-  const { outside, distance, radius } = isOutsideCheckInArea(item.checkInLocation, parsed);
+  const { outside, distance, radius } = isOutsideCheckInArea(item.checkInLocation, current);
   const wasOutside = !!item.outsideGym;
   item.outsideGym = outside;
 
@@ -248,15 +283,14 @@ exports.locationPing = asyncHandler(async (req, res) => {
     const lastAlert = item.outsideAlertSentAt ? new Date(item.outsideAlertSentAt).getTime() : 0;
     const shouldAlert = !wasOutside || Date.now() - lastAlert > cooldownMs;
     if (shouldAlert) {
-      const currentLocation = await withAddress(parsed);
-      item.lastKnownLocation = currentLocation;
+      item.lastKnownLocation = current;
       const trainer = await req.models.Trainer.findById(req.user.trainerId).lean();
       await safeNotify(() =>
         notifyTrainerLeftGym({
           gym: req.gym,
           trainer,
           attendance: item,
-          currentLocation,
+          currentLocation: current,
           distance,
         })
       );

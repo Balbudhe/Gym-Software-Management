@@ -37,8 +37,8 @@ const buildReminderContent = (kind, { name, gymName, expiryDate }) => {
     return { subject: `Your ${gym} membership expires today`, text };
   }
 
-  const text = `Firstly pay the fees else you don't allowed in gym. Hi ${memberName}, your ${gym} membership expired on ${date}. Renew immediately. Gym entry is not allowed until fees are paid.`;
-  return { subject: `Pay fees now — gym entry is not allowed`, text };
+  const text = `Hi ${memberName}, your ${gym} membership expired on ${date}. Please pay your fees to renew. Gym entry is paused until the renewal is done.`;
+  return { subject: `Your ${gym} membership has expired`, text };
 };
 
 const wrapHtml = (text) => `
@@ -52,6 +52,7 @@ const wrapHtml = (text) => `
 
 module.exports = {
   REMINDER_KINDS,
+  formatExpiry,
   expiryKey,
   buildReminderContent,
   wrapHtml,

@@ -1,7 +1,8 @@
 const asyncHandler = require('../utils/asyncHandler');
 const { expiryFilter } = require('../services/membershipService');
 const { startOfDay, addDays, workingHoursDecimal } = require('../utils/dates');
-const { attendanceDateKey } = require('../services/attendanceService');
+const { attendanceDateKey, closeStaleShifts } = require('../services/attendanceService');
+const { isSunday } = require('../utils/trainerBatches');
 
 exports.memberReport = asyncHandler(async (req, res) => {
   const branches = req.branchId
@@ -100,6 +101,12 @@ exports.attendanceReport = asyncHandler(async (req, res) => {
   const from = req.query.from ? startOfDay(new Date(req.query.from)) : startOfDay(addDays(new Date(), -30));
   const to = req.query.to ? startOfDay(new Date(req.query.to)) : attendanceDateKey();
   const dayCount = Math.max(1, Math.round((to - from) / 86400000) + 1);
+  let holidays = 0;
+  for (let offset = 0; offset < dayCount; offset += 1) {
+    if (isSunday(addDays(from, offset))) holidays += 1;
+  }
+  const workingDays = Math.max(1, dayCount - holidays);
+  await closeStaleShifts(req.models, req.branchFilter);
 
   const trainers = await req.models.Trainer.find({ ...req.branchFilter, status: 'active' })
     .populate('branchId', 'name')
@@ -116,12 +123,12 @@ exports.attendanceReport = asyncHandler(async (req, res) => {
       let late = 0;
       let hours = 0;
       records.forEach((r) => {
-        if (r.status === 'late') late += 1;
+        if (r.status === 'late' || (r.lateCheckIn && r.status === 'present')) late += 1;
         if (r.status === 'present' || r.status === 'late') present += 1;
         hours += workingHoursDecimal(r.checkInTime, r.checkOutTime);
       });
-      const absent = Math.max(0, dayCount - present);
-      const percent = Math.round((present / dayCount) * 100);
+      const absent = Math.max(0, workingDays - present);
+      const percent = Math.round((present / workingDays) * 100);
 
       return {
         trainerId: trainer._id,
@@ -131,6 +138,7 @@ exports.attendanceReport = asyncHandler(async (req, res) => {
         present,
         late,
         absent,
+        holidays,
         attendancePercent: percent,
         workingHours: Number(hours.toFixed(1)),
       };

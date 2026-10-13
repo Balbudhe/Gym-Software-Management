@@ -11,6 +11,7 @@ import AuthImage from '../../components/common/AuthImage';
 import Modal from '../../components/common/Modal';
 import { formatDateTime } from '../../utils/format';
 import AttendanceLocation from '../../components/attendance/AttendanceLocation';
+import AttendanceStatus from '../../components/attendance/AttendanceStatus';
 
 export default function TrainerAttendance() {
   const { selectedBranch } = useBranch();
@@ -44,7 +45,7 @@ export default function TrainerAttendance() {
       }
     };
     load();
-    const timer = setInterval(() => load(true), 30000);
+    const timer = setInterval(() => load(true), 12000);
     return () => clearInterval(timer);
   }, [selectedBranch, filters, page]);
 
@@ -67,9 +68,34 @@ export default function TrainerAttendance() {
             <option value="present">Present</option>
             <option value="late">Late</option>
             <option value="absent">Absent</option>
+            <option value="in_progress">On shift</option>
+            <option value="holiday">Holiday</option>
           </select>
         </FilterField>
       </FilterBar>
+      {!loading && rows.some((r) => r.checkInTime && !r.checkOutTime) ? (
+        <div className="mb-6 grid gap-4 lg:grid-cols-2">
+          {rows
+            .filter((r) => r.checkInTime && !r.checkOutTime)
+            .map((row) => (
+              <div key={row._id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-slate-900">{row.trainerId?.name || 'Trainer'}</p>
+                    <p className="text-xs text-slate-500">{row.branchId?.name || '—'}</p>
+                  </div>
+                  {row.outsideGym ? <Badge tone="amber">Left check-in area</Badge> : statusBadge(row.status)}
+                </div>
+                <AttendanceLocation
+                  location={row.lastKnownLocation || row.checkInLocation}
+                  showMap
+                  updatedAt={row.lastLocationAt}
+                />
+              </div>
+            ))}
+        </div>
+      ) : null}
+
       {loading ? <Skeleton /> : (
         <>
           <DataTable
@@ -139,7 +165,7 @@ export default function TrainerAttendance() {
                     '—'
                   ),
               },
-              { key: 'status', header: 'Status', render: (r) => statusBadge(r.status) },
+              { key: 'status', header: 'Status', render: (r) => <AttendanceStatus row={r} /> },
             ]}
           />
           <Modal open={!!selectedPhoto} title={selectedPhoto?.alt || 'Attendance photo'} onClose={() => setSelectedPhoto(null)} wide>

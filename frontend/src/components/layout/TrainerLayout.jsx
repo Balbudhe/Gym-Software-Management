@@ -5,16 +5,15 @@ import { BranchProvider } from '../../context/BranchContext';
 import { TrainerShiftProvider, useTrainerShift } from '../../context/TrainerShiftContext';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import ScrollMain from './ScrollMain';
 import Spinner from '../common/Spinner';
 
 function ShiftBanner() {
   const shift = useTrainerShift();
   if (!shift?.onShift) return null;
   return (
-    <div className={`border-b px-4 py-2 text-sm ${shift.outsideGym ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
-      {shift.outsideGym
-        ? 'You appear to be away from your check-in location. The gym owner has been notified.'
-        : 'Shift in progress. Location is tracked until you check out. Logout stays locked until then.'}
+    <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-900">
+      Shift in progress. Check out before you leave. Logout stays locked until then.
     </div>
   );
 }
@@ -22,8 +21,8 @@ function ShiftBanner() {
 function TrainerShell() {
   const [open, setOpen] = useState(false);
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <div className="hidden lg:block">
+    <div className="flex h-dvh overflow-hidden bg-slate-50">
+      <div className="hidden h-full shrink-0 lg:block">
         <Sidebar role="TRAINER" />
       </div>
       {open ? (
@@ -34,12 +33,12 @@ function TrainerShell() {
           </div>
         </div>
       ) : null}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header onMenu={() => setOpen(true)} />
         <ShiftBanner />
-        <main className="flex-1 p-4 lg:p-6">
+        <ScrollMain>
           <Outlet />
-        </main>
+        </ScrollMain>
       </div>
     </div>
   );

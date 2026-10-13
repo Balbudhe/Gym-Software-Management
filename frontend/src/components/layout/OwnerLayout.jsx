@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { BranchProvider } from '../../context/BranchContext';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import ScrollMain from './ScrollMain';
 import Spinner from '../common/Spinner';
 
 export default function OwnerLayout() {
@@ -16,8 +17,8 @@ export default function OwnerLayout() {
 
   return (
     <BranchProvider>
-      <div className="flex min-h-screen bg-slate-50">
-        <div className="hidden lg:block">
+      <div className="flex h-dvh overflow-hidden bg-slate-50">
+        <div className="hidden h-full shrink-0 lg:block">
           <Sidebar role="OWNER" />
         </div>
         {open ? (
@@ -28,11 +29,11 @@ export default function OwnerLayout() {
             </div>
           </div>
         ) : null}
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <Header onMenu={() => setOpen(true)} />
-          <main className="flex-1 p-4 lg:p-6">
+          <ScrollMain>
             <Outlet />
-          </main>
+          </ScrollMain>
         </div>
       </div>
     </BranchProvider>

@@ -59,6 +59,7 @@ export default function Reports() {
       { key: 'trainer', header: 'Trainer' },
       { key: 'present', header: 'Present' },
       { key: 'absent', header: 'Absent' },
+      { key: 'holidays', header: 'Holidays' },
       { key: 'late', header: 'Late' },
       { key: 'attendancePercent', header: 'Attendance %', render: (r) => `${r.attendancePercent}%` },
       { key: 'workingHours', header: 'Working Hours' },

@@ -23,6 +23,8 @@ export const statusBadge = (status) => {
     inactive: ['slate', 'Inactive'],
     late: ['amber', 'Late'],
     absent: ['red', 'Absent'],
+    holiday: ['blue', 'Holiday'],
+    in_progress: ['blue', 'On shift'],
     expiring: ['amber', 'Expiring'],
   };
   const [tone, label] = map[status] || ['slate', status || '—'];

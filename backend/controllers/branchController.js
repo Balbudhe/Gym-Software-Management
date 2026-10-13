@@ -3,7 +3,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { nextBranchCode } = require('../utils/codes');
 const { startOfDay } = require('../utils/dates');
 const { expiryFilter } = require('../services/membershipService');
-const { attendanceDateKey } = require('../services/attendanceService');
+const { attendanceDateKey, PRESENT_STATUSES } = require('../services/attendanceService');
 
 const withCounts = async (models, branches) => {
   const today = attendanceDateKey();
@@ -22,7 +22,7 @@ const withCounts = async (models, branches) => {
           models.TrainerAttendance.countDocuments({
             branchId,
             date: today,
-            status: { $in: ['present', 'late'] },
+            status: { $in: PRESENT_STATUSES },
           }),
         ]);
 

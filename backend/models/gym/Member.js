@@ -38,6 +38,7 @@ const memberSchema = new Schema(
         sentAt: { type: Date, default: Date.now },
         emailSent: { type: Boolean, default: false },
         smsSent: { type: Boolean, default: false },
+        whatsappSent: { type: Boolean, default: false },
         _id: false,
       },
     ],

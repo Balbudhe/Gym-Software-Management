@@ -7,6 +7,7 @@ const BATCH_LABELS = {
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const GYM_TIMEZONE = process.env.GYM_TIMEZONE || 'Asia/Kolkata';
 const LATE_GRACE_MINUTES = 15;
+const HOURS_ALLOWANCE_MINUTES = 60;
 
 const parseRawBatches = (raw) => {
   if (!raw) return [];
@@ -95,6 +96,27 @@ const findActiveBatch = (batches = [], date = new Date()) => {
   return (batches || []).find((batch) => batch.startTime <= now && now <= batch.endTime) || null;
 };
 
+const batchDurationMinutes = (batch) => {
+  const start = timeToMinutes(batch?.startTime);
+  const end = timeToMinutes(batch?.endTime);
+  if (start == null || end == null || end <= start) return 0;
+  return end - start;
+};
+
+const requiredMinutesForBatch = (batch) =>
+  Math.max(0, batchDurationMinutes(batch) - HOURS_ALLOWANCE_MINUTES);
+
+const isSunday = (date = new Date()) =>
+  new Intl.DateTimeFormat('en-US', { timeZone: GYM_TIMEZONE, weekday: 'short' }).format(date) === 'Sun';
+
+const formatMinutes = (minutes) => {
+  const total = Math.max(0, Math.round(Number(minutes) || 0));
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  if (!hours) return `${mins}m`;
+  return mins ? `${hours}h ${mins}m` : `${hours}h`;
+};
+
 const attendanceStatusForBatch = (date, batch) => {
   if (!date || !batch) return 'absent';
   const nowMins = timeToMinutes(dateToHhmm(date));
@@ -104,6 +126,11 @@ const attendanceStatusForBatch = (date, batch) => {
 };
 
 const assertWithinAssignedHours = (batches, date = new Date(), action = 'Attendance') => {
+  if (isSunday(date)) {
+    const error = new Error('Sunday is a holiday. Check-in is not required today.');
+    error.statusCode = 400;
+    throw error;
+  }
   if (!batches?.length) {
     const error = new Error('Batch timing is not assigned. Ask the gym owner to set your batch hours.');
     error.statusCode = 400;
@@ -122,22 +149,28 @@ const assertWithinAssignedHours = (batches, date = new Date(), action = 'Attenda
 
 const attendanceWindow = (batches = [], item = null, date = new Date()) => {
   const hasBatches = !!(batches && batches.length);
-  const activeBatch = findActiveBatch(batches, date);
+  const holiday = isSunday(date);
+  const activeBatch = holiday ? null : findActiveBatch(batches, date);
   const withinWindow = !!activeBatch;
   const checkedIn = !!item?.checkInTime;
   const checkedOut = !!item?.checkOutTime;
+  const requiredMinutes = item?.requiredMinutes ?? (activeBatch ? requiredMinutesForBatch(activeBatch) : null);
   return {
     hasBatches,
+    isHoliday: holiday,
     withinWindow,
     activeBatch,
     allowedHoursLabel: formatAssignedHours(batches),
-    canCheckIn: hasBatches && withinWindow && !checkedIn,
-    canCheckOut: hasBatches && withinWindow && checkedIn && !checkedOut,
+    requiredMinutes,
+    requiredLabel: requiredMinutes != null ? formatMinutes(requiredMinutes) : null,
+    canCheckIn: !holiday && hasBatches && withinWindow && !checkedIn,
+    canCheckOut: checkedIn && !checkedOut,
   };
 };
 
 module.exports = {
   BATCH_NAMES,
+  HOURS_ALLOWANCE_MINUTES,
   normalizeBatches,
   dateToHhmm,
   findActiveBatch,
@@ -145,4 +178,8 @@ module.exports = {
   attendanceStatusForBatch,
   assertWithinAssignedHours,
   attendanceWindow,
+  batchDurationMinutes,
+  requiredMinutesForBatch,
+  isSunday,
+  formatMinutes,
 };

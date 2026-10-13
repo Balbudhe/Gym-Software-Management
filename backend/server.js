@@ -5,6 +5,7 @@ const { connectPlatform } = require('./config/platformDatabase');
 const { closeAllGymConnections } = require('./config/databaseManager');
 const { ensureDir, uploadRoot } = require('./config/cloudStorage');
 const { startMembershipReminderJob } = require('./jobs/membershipReminders');
+const { startAttendanceFinalizerJob } = require('./jobs/attendanceFinalizer');
 
 const app = express();
 
@@ -50,6 +51,7 @@ const start = async () => {
   app.listen(PORT, () => {
     console.log(`Gym SaaS API running on port ${PORT}`);
     startMembershipReminderJob();
+    startAttendanceFinalizerJob();
   });
 };
 
