@@ -59,13 +59,14 @@ const sendOwnerAlertEmail = async ({ to, subject, html, text }) => {
 };
 
 const sendMembershipReminderEmail = async ({ to, subject, html, text }) => {
-  if (!to) return false;
+  if (!to) return { sent: false, reason: 'no_email' };
   if (!isSmtpConfigured()) {
     console.warn(`Membership reminder email skipped (SMTP not configured): ${subject}`);
-    return false;
+    return { sent: false, reason: 'not_configured' };
   }
   await sendMail({ to, subject, html, text });
-  return true;
+  console.log(`Membership reminder email accepted by SMTP for ${to}: ${subject}`);
+  return { sent: true, to };
 };
 
 const safeSendMembershipReminderEmail = async (payload) => {
@@ -73,7 +74,7 @@ const safeSendMembershipReminderEmail = async (payload) => {
     return await sendMembershipReminderEmail(payload);
   } catch (error) {
     console.error('Membership reminder email failed:', error.message);
-    return false;
+    return { sent: false, reason: error.message };
   }
 };
 

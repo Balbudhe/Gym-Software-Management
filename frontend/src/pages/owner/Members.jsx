@@ -11,6 +11,7 @@ import DataTable from '../../components/tables/DataTable';
 import FilterBar, { FilterField } from '../../components/filters/FilterBar';
 import Modal from '../../components/common/Modal';
 import { statusBadge } from '../../components/common/Badge';
+import SendReminderButton from '../../components/members/SendReminderButton';
 import { formatDate } from '../../utils/format';
 import { trainerOptionLabel } from '../../utils/batches';
 
@@ -170,7 +171,8 @@ export default function OwnerMembers() {
                 key: 'actions',
                 header: 'Actions',
                 render: (r) => (
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <SendReminderButton member={r} />
                     <button
                       type="button"
                       className="text-sm text-brand-700"

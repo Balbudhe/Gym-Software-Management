@@ -82,4 +82,4 @@ const safeSendSms = async ({ to, message }) => {
   }
 };
 
-module.exports = { isSmsConfigured, sendSms, safeSendSms, toLocalMobile };
+module.exports = { isSmsConfigured, sendSms, safeSendSms, toLocalMobile, toE164 };

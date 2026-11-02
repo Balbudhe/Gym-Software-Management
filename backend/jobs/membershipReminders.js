@@ -3,23 +3,14 @@ const { getGymConnection } = require('../config/databaseManager');
 const { registerGymModels } = require('../models/gym');
 const { startOfDay, addDays } = require('../utils/dates');
 const { daysUntilExpiry } = require('../services/membershipService');
-const { safeSendMembershipReminderEmail } = require('../services/emailService');
-const { safeSendSms } = require('../services/smsService');
-const { safeSendWhatsAppReminder } = require('../services/whatsappService');
 const {
   REMINDER_KINDS,
-  formatExpiry,
-  expiryKey,
-  buildReminderContent,
-  wrapHtml,
 } = require('../services/membershipReminderMessages');
+const { sendMembershipReminder } = require('../services/membershipReminderService');
 
 const kindForOffset = Object.fromEntries(
   Object.entries(REMINDER_KINDS).map(([kind, offset]) => [String(offset), kind])
 );
-
-const alreadySent = (member, kind, key) =>
-  (member.reminderLog || []).some((entry) => entry.kind === kind && entry.expiryKey === key);
 
 const processGym = async (gym) => {
   const connection = await getGymConnection(gym._id);
@@ -39,50 +30,23 @@ const processGym = async (gym) => {
     const offset = daysUntilExpiry(member.expiryDate);
     const kind = kindForOffset[String(offset)];
     if (!kind) continue;
-
-    const key = expiryKey(member.expiryDate);
-    if (alreadySent(member, kind, key)) continue;
     if (!member.email && !member.phone) continue;
 
-    const content = buildReminderContent(kind, {
-      name: member.name,
-      gymName: gym.name,
-      expiryDate: member.expiryDate,
-    });
-
-    const emailSent = member.email
-      ? await safeSendMembershipReminderEmail({
-          to: member.email,
-          subject: content.subject,
-          text: content.text,
-          html: wrapHtml(content.text),
-        })
-      : false;
-    const smsSent = member.phone
-      ? await safeSendSms({ to: member.phone, message: content.text })
-      : false;
-    const whatsappSent = member.phone
-      ? await safeSendWhatsAppReminder({
-          to: member.phone,
-          kind,
-          params: [member.name || 'Member', gym.name, formatExpiry(member.expiryDate)],
-        })
-      : false;
-
-    member.reminderLog = member.reminderLog || [];
-    member.reminderLog.push({
-      kind,
-      expiryKey: key,
-      sentAt: new Date(),
-      emailSent,
-      smsSent,
-      whatsappSent,
-    });
-    await member.save();
-    sent += 1;
-    console.log(
-      `Membership reminder ${kind} sent to ${member.name} (${gym.slug}) email=${emailSent} sms=${smsSent} whatsapp=${whatsappSent}`
-    );
+    try {
+      const result = await sendMembershipReminder({
+        member,
+        gymName: gym.name,
+        force: false,
+        source: 'auto',
+      });
+      if (result.skipped) continue;
+      sent += 1;
+      console.log(
+        `Membership reminder ${result.kind} sent to ${member.name} (${gym.slug}) email=${result.emailSent} sms=${result.smsSent}`
+      );
+    } catch (error) {
+      console.error(`Membership reminder failed for ${member.name} (${gym.slug}):`, error.message);
+    }
   }
   return sent;
 };

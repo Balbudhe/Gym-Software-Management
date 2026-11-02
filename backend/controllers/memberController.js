@@ -5,6 +5,7 @@ const { startOfDay, addDays } = require('../utils/dates');
 const { expiryFilter, calculateExpiry, computeMembershipStatus, daysExpired, daysUntilExpiry } = require('../services/membershipService');
 const { toPublicPath } = require('../config/cloudStorage');
 const { createMembershipPayment } = require('../services/paymentService');
+const { sendMembershipReminder } = require('../services/membershipReminderService');
 
 const populateMember = [
   { path: 'branchId', select: 'name branchCode city' },
@@ -259,6 +260,58 @@ exports.assignTrainer = asyncHandler(async (req, res) => {
   await member.save();
   const item = await req.models.Member.findById(member._id).populate(populateMember);
   res.json({ item });
+});
+
+exports.sendReminder = asyncHandler(async (req, res) => {
+  const member = await req.models.Member.findOne({
+    _id: req.params.id,
+    ...req.branchFilter,
+  });
+  if (!member) return res.status(404).json({ message: 'Member not found' });
+
+  if (req.user.role === 'TRAINER') {
+    const trainerId = String(req.user.trainerId || '');
+    const allowed =
+      String(member.assignedTrainerId || '') === trainerId ||
+      String(member.createdByTrainerId || '') === trainerId;
+    if (!allowed) {
+      return res.status(403).json({ message: 'You can only remind members assigned to you or added by you' });
+    }
+  }
+
+  const days = daysUntilExpiry(member.expiryDate);
+  if (days == null || days > 7) {
+    return res.status(400).json({
+      message: 'Reminders can only be sent for members who are expired or expiring within 7 days',
+    });
+  }
+
+  const result = await sendMembershipReminder({
+    member,
+    gymName: req.gym?.name || 'the gym',
+    force: true,
+    source: 'manual',
+    triggeredByUserId: req.user.userId,
+  });
+
+  await req.models.AuditLog.create({
+    actorUserId: req.user.userId,
+    actorRole: req.user.role,
+    branchId: member.branchId,
+    action: 'MEMBER_REMINDER_SEND',
+    entity: 'Member',
+    entityId: member._id,
+  });
+
+  const parts = [...(result.details || [])];
+  if (result.problems?.length) parts.push(`Also: ${result.problems.join(' · ')}`);
+  if (result.hints?.length) parts.push(result.hints.join('. '));
+
+  res.json({
+    item: member,
+    result,
+    message: parts.join('. ') || 'Reminder processed',
+  });
 });
 
 exports.createAdmission = createAdmission;

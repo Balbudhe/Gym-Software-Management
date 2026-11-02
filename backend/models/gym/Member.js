@@ -39,6 +39,8 @@ const memberSchema = new Schema(
         emailSent: { type: Boolean, default: false },
         smsSent: { type: Boolean, default: false },
         whatsappSent: { type: Boolean, default: false },
+        source: { type: String, enum: ['auto', 'manual'], default: 'auto' },
+        triggeredByUserId: { type: Schema.Types.ObjectId, default: null },
         _id: false,
       },
     ],

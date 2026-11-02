@@ -13,5 +13,6 @@ router.post('/', setUploadFolder('members'), upload.single('profilePhoto'), cont
 router.get('/:id', controller.getMember);
 router.put('/:id', setUploadFolder('members'), upload.single('profilePhoto'), controller.updateMember);
 router.patch('/:id/assign-trainer', controller.assignTrainer);
+router.post('/:id/send-reminder', controller.sendReminder);
 
 module.exports = router;

@@ -12,6 +12,8 @@ import DataTable from '../../components/tables/DataTable';
 import AuthImage from '../../components/common/AuthImage';
 import Modal from '../../components/common/Modal';
 import { statusBadge } from '../../components/common/Badge';
+import SendReminderButton from '../../components/members/SendReminderButton';
+import { canSendMembershipReminder } from '../../utils/membershipReminder';
 import { formatDate, initials, cn } from '../../utils/format';
 
 const VIEW_OPTIONS = [
@@ -193,6 +195,16 @@ export default function MyMembers({ status = '' }) {
       key: 'status',
       header: 'Status',
       render: (r) => statusBadge(r.status === 'inactive' ? 'inactive' : r.membershipStatus || r.status),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (r) =>
+        canSendMembershipReminder(r) ? (
+          <SendReminderButton member={r} compact />
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
+        ),
     },
   ];
 
@@ -389,7 +401,14 @@ export default function MyMembers({ status = '' }) {
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              {canSendMembershipReminder(selected) ? (
+                <SendReminderButton
+                  member={selected}
+                  compact
+                  className="flex-1 justify-center rounded-xl px-4 py-2.5"
+                />
+              ) : null}
               <button
                 type="button"
                 onClick={async () => {
