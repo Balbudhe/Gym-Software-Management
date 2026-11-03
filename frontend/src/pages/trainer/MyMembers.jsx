@@ -10,6 +10,7 @@ import Pagination from '../../components/common/Pagination';
 import EmptyState from '../../components/common/EmptyState';
 import DataTable from '../../components/tables/DataTable';
 import AuthImage from '../../components/common/AuthImage';
+import ImageLightbox from '../../components/common/ImageLightbox';
 import Modal from '../../components/common/Modal';
 import { statusBadge } from '../../components/common/Badge';
 import SendReminderButton from '../../components/members/SendReminderButton';
@@ -22,9 +23,21 @@ const VIEW_OPTIONS = [
   { id: 'branch', label: 'My branch' },
 ];
 
-function MemberPhoto({ member, className = 'h-10 w-10 rounded-full object-cover' }) {
+function MemberPhoto({ member, className = 'h-10 w-10 rounded-full object-cover', onOpen }) {
   if (member.profilePhoto) {
-    return <AuthImage src={member.profilePhoto} alt={member.name} className={className} />;
+    return (
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpen?.({ src: member.profilePhoto, alt: member.name || 'Member photo' });
+        }}
+        className="block overflow-hidden rounded-full p-0 transition ring-offset-2 hover:ring-2 hover:ring-brand-500/40"
+        title="View photo"
+      >
+        <AuthImage src={member.profilePhoto} alt={member.name} className={className} />
+      </button>
+    );
   }
 
   return (
@@ -60,6 +73,7 @@ export default function MyMembers({ status = '' }) {
   const [healthIssueFilter, setHealthIssueFilter] = useState('');
   const [mine, setMine] = useState('assigned');
   const [selected, setSelected] = useState(null);
+  const [lightbox, setLightbox] = useState(null);
   const debouncedSearch = useDebounce(search);
   const debouncedHealthIssueFilter = useDebounce(healthIssueFilter);
 
@@ -143,7 +157,7 @@ export default function MyMembers({ status = '' }) {
     {
       key: 'photo',
       header: 'Photo',
-      render: (r) => <MemberPhoto member={r} />,
+      render: (r) => <MemberPhoto member={r} onOpen={setLightbox} />,
     },
     { key: 'memberCode', header: 'Member ID' },
     {
@@ -343,11 +357,20 @@ export default function MyMembers({ status = '' }) {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
               <div className="shrink-0">
                 {selected.profilePhoto ? (
-                  <AuthImage
-                    src={selected.profilePhoto}
-                    alt={selected.name}
-                    className="h-28 w-28 rounded-2xl object-cover"
-                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setLightbox({ src: selected.profilePhoto, alt: selected.name || 'Member photo' })
+                    }
+                    className="overflow-hidden rounded-2xl p-0 transition hover:ring-2 hover:ring-brand-500/40"
+                    title="View photo"
+                  >
+                    <AuthImage
+                      src={selected.profilePhoto}
+                      alt={selected.name}
+                      className="h-28 w-28 rounded-2xl object-cover"
+                    />
+                  </button>
                 ) : (
                   <div className="flex h-28 w-28 items-center justify-center rounded-2xl bg-slate-900 text-2xl font-semibold text-white">
                     {initials(selected.name)}
@@ -443,6 +466,13 @@ export default function MyMembers({ status = '' }) {
           </div>
         ) : null}
       </Modal>
+
+      <ImageLightbox
+        open={!!lightbox}
+        src={lightbox?.src}
+        alt={lightbox?.alt}
+        onClose={() => setLightbox(null)}
+      />
     </div>
   );
 }

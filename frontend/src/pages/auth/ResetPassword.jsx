@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import api from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import FormField from '../../components/forms/FormField';
+import PasswordInput from '../../components/forms/PasswordInput';
 
 export default function ResetPassword() {
   const toast = useToast();
@@ -55,8 +56,7 @@ export default function ResetPassword() {
         <p className="mt-1 text-sm text-slate-500">Choose a new password for your account.</p>
         <form className="mt-6 space-y-4" onSubmit={handleSubmit(onSubmit)}>
           <FormField label="New password" error={errors.newPassword?.message}>
-            <input
-              type="password"
+            <PasswordInput
               {...register('newPassword', {
                 required: 'Required',
                 minLength: { value: 8, message: 'Min 8 characters' },
@@ -64,8 +64,7 @@ export default function ResetPassword() {
             />
           </FormField>
           <FormField label="Confirm password" error={errors.confirmPassword?.message}>
-            <input
-              type="password"
+            <PasswordInput
               {...register('confirmPassword', {
                 required: 'Required',
                 validate: (value) => value === watch('newPassword') || 'Passwords do not match',

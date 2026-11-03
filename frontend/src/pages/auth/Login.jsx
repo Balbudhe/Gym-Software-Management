@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import FormField from '../../components/forms/FormField';
+import PasswordInput from '../../components/forms/PasswordInput';
 
 export default function Login() {
   const { user, login } = useAuth();
@@ -43,7 +44,7 @@ export default function Login() {
             <input type="email" {...register('email', { required: 'Required' })} />
           </FormField>
           <FormField label="Password" error={errors.password?.message}>
-            <input type="password" {...register('password', { required: 'Required' })} />
+            <PasswordInput {...register('password', { required: 'Required' })} />
           </FormField>
           <div className="text-right">
             <Link to="/forgot-password" className="text-sm font-medium text-brand-700">

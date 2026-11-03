@@ -9,13 +9,18 @@ import {
   MapPin,
   UserRound,
   ClipboardList,
+  TriangleAlert,
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useDebounce } from '../../hooks/useDebounce';
 import FormField from '../../components/forms/FormField';
 import CameraCapture from '../../components/attendance/CameraCapture';
-import { cn } from '../../utils/format';
+import AuthImage from '../../components/common/AuthImage';
+import { statusBadge } from '../../components/common/Badge';
+import EditMemberModal from '../../components/members/EditMemberModal';
+import { cn, formatDate } from '../../utils/format';
 import { trainerOptionLabel } from '../../utils/batches';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
@@ -23,6 +28,56 @@ const PHONE_PATTERN = /^(?:\+91[\s-]?)?[6-9]\d{9}$/;
 
 const isValidPhone = (value) => PHONE_PATTERN.test(String(value || '').trim());
 const isValidEmail = (value) => EMAIL_PATTERN.test(String(value || '').trim());
+
+function ExistingMemberCard({ member, matchedOn, onEdit }) {
+  if (!member) return null;
+  return (
+    <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-sm">
+      <div className="mb-2 flex items-start gap-2 text-amber-900">
+        <TriangleAlert size={16} className="mt-0.5 shrink-0" />
+        <p className="font-medium">
+          This {matchedOn} already belongs to an existing member. Click below to update their details
+          instead of adding again.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => onEdit?.(member)}
+        className="flex w-full gap-3 rounded-lg border border-amber-100 bg-white p-3 text-left transition hover:border-amber-300 hover:bg-amber-50/40"
+      >
+        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-slate-100">
+          {member.profilePhoto ? (
+            <AuthImage src={member.profilePhoto} alt={member.name} className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full items-center justify-center text-xs text-slate-400">No photo</div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-semibold text-slate-900">{member.name}</p>
+            {statusBadge(member.status === 'inactive' ? 'inactive' : member.membershipStatus || member.status)}
+            <span className="text-xs font-medium text-brand-700">Update →</span>
+          </div>
+          <p className="text-xs text-slate-500">
+            {member.memberCode}
+            {member.branchId?.name ? ` · ${member.branchId.name}` : ''}
+          </p>
+          <p className="text-xs text-slate-600">
+            {member.phone || '—'}
+            {member.email ? ` · ${member.email}` : ''}
+          </p>
+          <p className="text-xs text-slate-500">
+            Plan: {member.membershipId?.membershipPlanId?.name || '—'} · Expiry:{' '}
+            {formatDate(member.expiryDate)}
+          </p>
+          <p className="text-xs text-slate-500">
+            Trainer: {member.assignedTrainerId?.name || '—'}
+          </p>
+        </div>
+      </button>
+    </div>
+  );
+}
 
 function Section({ icon: Icon, step, title, description, children }) {
   return (
@@ -66,6 +121,29 @@ export default function NewAdmission({ trainerMode = false }) {
   const [photoError, setPhotoError] = useState('');
   const [cameraOpen, setCameraOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [existingByPhone, setExistingByPhone] = useState(null);
+  const [existingByEmail, setExistingByEmail] = useState(null);
+  const [checkingContact, setCheckingContact] = useState(false);
+  const [editingMember, setEditingMember] = useState(null);
+
+  const openExistingMember = (member) => {
+    if (trainerMode) {
+      const memberBranch = String(member.branchId?._id || member.branchId || '');
+      const trainerBranch = String(user.branchId || '');
+      if (memberBranch && trainerBranch && memberBranch !== trainerBranch) {
+        toast.push('This member is in another branch. Only that branch can update them.', 'error');
+        return;
+      }
+    }
+    setEditingMember(member);
+  };
+
+  const applyUpdatedMember = () => {
+    setValue('phone', '');
+    setValue('email', '');
+    setExistingByPhone(null);
+    setExistingByEmail(null);
+  };
 
   const branchId = watch('branchId');
   const membershipPlanId = watch('membershipPlanId');
@@ -74,7 +152,13 @@ export default function NewAdmission({ trainerMode = false }) {
   const memberName = watch('name');
   const startDate = watch('startDate');
   const paymentMethod = watch('paymentMethod');
+  const phoneValue = watch('phone');
+  const emailValue = watch('email');
   const paymentsEnabled = Boolean(user?.paymentsEnabled);
+
+  const debouncedPhone = useDebounce(phoneValue, 400);
+  const debouncedEmail = useDebounce(emailValue, 400);
+  const duplicateBlocked = Boolean(existingByPhone || existingByEmail);
 
   const activePlans = useMemo(() => plans.filter((p) => p.status === 'active'), [plans]);
   const selectedPlan = activePlans.find((p) => p._id === membershipPlanId);
@@ -123,6 +207,46 @@ export default function NewAdmission({ trainerMode = false }) {
     [photoPreview]
   );
 
+  useEffect(() => {
+    const phone = String(debouncedPhone || '').trim();
+    const email = String(debouncedEmail || '').trim();
+    const phoneOk = isValidPhone(phone);
+    const emailOk = isValidEmail(email);
+
+    if (!phoneOk && !emailOk) {
+      setExistingByPhone(null);
+      setExistingByEmail(null);
+      setCheckingContact(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const lookup = async () => {
+      setCheckingContact(true);
+      try {
+        const params = {};
+        if (phoneOk) params.phone = phone;
+        if (emailOk) params.email = email;
+        const { data } = await api.get('/members/lookup', { params });
+        if (cancelled) return;
+        setExistingByPhone(phoneOk ? data.byPhone || null : null);
+        setExistingByEmail(emailOk ? data.byEmail || null : null);
+      } catch {
+        if (!cancelled) {
+          setExistingByPhone(null);
+          setExistingByEmail(null);
+        }
+      } finally {
+        if (!cancelled) setCheckingContact(false);
+      }
+    };
+
+    lookup();
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedPhone, debouncedEmail]);
+
   const handlePhotoCapture = (blob) => {
     if (photoPreview) URL.revokeObjectURL(photoPreview);
     const file = new File([blob], `member-${Date.now()}.jpg`, { type: 'image/jpeg' });
@@ -151,6 +275,11 @@ export default function NewAdmission({ trainerMode = false }) {
       return;
     }
 
+    if (duplicateBlocked) {
+      toast.push('This phone or email already belongs to an existing member', 'error');
+      return;
+    }
+
     setSaving(true);
     try {
       const form = new FormData();
@@ -162,7 +291,12 @@ export default function NewAdmission({ trainerMode = false }) {
       toast.push('Admission created');
       navigate(trainerMode ? '/trainer/members' : '/owner/members');
     } catch (error) {
-      toast.push(error.response?.data?.message || 'Could not create admission', 'error');
+      const data = error.response?.data;
+      if (error.response?.status === 409) {
+        if (data?.byPhone) setExistingByPhone(data.byPhone);
+        if (data?.byEmail) setExistingByEmail(data.byEmail);
+      }
+      toast.push(data?.message || 'Could not create admission', 'error');
     } finally {
       setSaving(false);
     }
@@ -198,8 +332,8 @@ export default function NewAdmission({ trainerMode = false }) {
           <button
             type="submit"
             form="admission-form"
-            disabled={saving}
-            className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800"
+            disabled={saving || duplicateBlocked || checkingContact}
+            className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? 'Saving admission...' : 'Create admission'}
           </button>
@@ -229,27 +363,63 @@ export default function NewAdmission({ trainerMode = false }) {
                   })}
                 />
               </FormField>
-              <FormField label="Mobile" required error={errors.phone?.message}>
-                <input
-                  placeholder="9876543210"
-                  inputMode="tel"
-                  {...register('phone', {
-                    required: 'Mobile number is required',
-                    validate: (value) =>
-                      isValidPhone(value) || 'Enter a valid 10-digit Indian mobile number',
-                  })}
+              <div>
+                <FormField
+                  label="Mobile"
+                  required
+                  error={errors.phone?.message || (existingByPhone ? 'This mobile is already registered' : undefined)}
+                >
+                  <input
+                    placeholder="9876543210"
+                    inputMode="tel"
+                    {...register('phone', {
+                      required: 'Mobile number is required',
+                      validate: (value) =>
+                        isValidPhone(value) || 'Enter a valid 10-digit Indian mobile number',
+                    })}
+                  />
+                </FormField>
+                <ExistingMemberCard
+                  member={existingByPhone}
+                  matchedOn="mobile number"
+                  onEdit={openExistingMember}
                 />
-              </FormField>
-              <FormField label="Email" required error={errors.email?.message}>
-                <input
-                  type="email"
-                  placeholder="member@email.com"
-                  {...register('email', {
-                    required: 'Email is required',
-                    validate: (value) => isValidEmail(value) || 'Enter a valid email address',
-                  })}
-                />
-              </FormField>
+              </div>
+              <div>
+                <FormField
+                  label="Email"
+                  required
+                  error={errors.email?.message || (existingByEmail ? 'This email is already registered' : undefined)}
+                >
+                  <input
+                    type="email"
+                    placeholder="member@email.com"
+                    {...register('email', {
+                      required: 'Email is required',
+                      validate: (value) => isValidEmail(value) || 'Enter a valid email address',
+                    })}
+                  />
+                </FormField>
+                {existingByEmail &&
+                (!existingByPhone || String(existingByEmail._id) !== String(existingByPhone._id)) ? (
+                  <ExistingMemberCard
+                    member={existingByEmail}
+                    matchedOn="email"
+                    onEdit={openExistingMember}
+                  />
+                ) : existingByEmail && existingByPhone && String(existingByEmail._id) === String(existingByPhone._id) ? (
+                  <p className="mt-2 text-xs text-amber-700">
+                    Same member also matches this email.{' '}
+                    <button
+                      type="button"
+                      className="font-medium text-brand-700 underline"
+                      onClick={() => openExistingMember(existingByEmail)}
+                    >
+                      Update details
+                    </button>
+                  </p>
+                ) : null}
+              </div>
               <FormField label="Date of birth">
                 <input type="date" {...register('dateOfBirth')} />
               </FormField>
@@ -556,8 +726,8 @@ export default function NewAdmission({ trainerMode = false }) {
           <button
             type="submit"
             form="admission-form"
-            disabled={saving}
-            className="flex-[1.4] rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white"
+            disabled={saving || duplicateBlocked || checkingContact}
+            className="flex-[1.4] rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? 'Saving...' : 'Create admission'}
           </button>
@@ -569,6 +739,14 @@ export default function NewAdmission({ trainerMode = false }) {
         title="Capture member photo"
         onClose={() => setCameraOpen(false)}
         onCapture={handlePhotoCapture}
+      />
+
+      <EditMemberModal
+        open={!!editingMember}
+        member={editingMember}
+        allowAssignTrainer
+        onClose={() => setEditingMember(null)}
+        onSaved={applyUpdatedMember}
       />
     </div>
   );

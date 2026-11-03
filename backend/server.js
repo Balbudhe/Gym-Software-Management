@@ -40,7 +40,10 @@ app.use((req, res) => res.status(404).json({ message: 'Not found' }));
 app.use((err, req, res, next) => {
   console.error(err);
   const status = err.status || err.statusCode || 500;
-  res.status(status).json({ message: err.message || 'Server error' });
+  res.status(status).json({
+    message: err.message || 'Server error',
+    ...(err.payload && typeof err.payload === 'object' ? err.payload : {}),
+  });
 });
 
 const PORT = process.env.PORT || 5000;

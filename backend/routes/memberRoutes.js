@@ -9,6 +9,7 @@ const router = express.Router();
 router.use(auth, tenant, branchScope);
 
 router.get('/', controller.listMembers);
+router.get('/lookup', controller.lookupMember);
 router.post('/', setUploadFolder('members'), upload.single('profilePhoto'), controller.createMember);
 router.get('/:id', controller.getMember);
 router.put('/:id', setUploadFolder('members'), upload.single('profilePhoto'), controller.updateMember);

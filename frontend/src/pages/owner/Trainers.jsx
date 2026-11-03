@@ -9,6 +9,7 @@ import Skeleton from '../../components/common/Skeleton';
 import Pagination from '../../components/common/Pagination';
 import Modal from '../../components/common/Modal';
 import FormField from '../../components/forms/FormField';
+import PasswordInput from '../../components/forms/PasswordInput';
 import BatchTimingPicker from '../../components/forms/BatchTimingPicker';
 import EmptyState from '../../components/common/EmptyState';
 import BatchChips from '../../components/common/BatchChips';
@@ -283,8 +284,7 @@ export default function OwnerTrainers() {
                 />
               </FormField>
               <FormField label="Password" error={errors.password?.message}>
-                <input
-                  type="password"
+                <PasswordInput
                   placeholder="Min 8 characters"
                   {...register('password', {
                     required: 'Required',

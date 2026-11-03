@@ -7,6 +7,61 @@ const { toPublicPath } = require('../config/cloudStorage');
 const { createMembershipPayment } = require('../services/paymentService');
 const { sendMembershipReminder } = require('../services/membershipReminderService');
 
+const digitsOnly = (value) => String(value || '').replace(/\D/g, '');
+
+const toLocalMobile = (phone) => {
+  const digits = digitsOnly(phone);
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+  if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
+  return digits;
+};
+
+const phoneMatchFilter = (phone) => {
+  const local = toLocalMobile(phone);
+  if (!local || local.length < 10) return null;
+  const escaped = local.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return { phone: new RegExp(`${escaped}$`) };
+};
+
+const findMemberByPhone = async (Member, phone, excludeId = null) => {
+  const filter = phoneMatchFilter(phone);
+  if (!filter) return null;
+  if (excludeId) filter._id = { $ne: excludeId };
+  return Member.findOne(filter).populate(populateMember).lean();
+};
+
+const findMemberByEmail = async (Member, email, excludeId = null) => {
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized) return null;
+  const filter = { email: normalized };
+  if (excludeId) filter._id = { $ne: excludeId };
+  return Member.findOne(filter).populate(populateMember).lean();
+};
+
+const assertUniqueContact = async (req, { phone, email, excludeId = null }) => {
+  const [byPhone, byEmail] = await Promise.all([
+    phone ? findMemberByPhone(req.models.Member, phone, excludeId) : null,
+    email ? findMemberByEmail(req.models.Member, email, excludeId) : null,
+  ]);
+
+  if (byPhone || byEmail) {
+    const same =
+      byPhone && byEmail && String(byPhone._id) === String(byEmail._id) ? byPhone : null;
+    const error = new Error(
+      same
+        ? `Member already exists (${same.memberCode} · ${same.name}). Do not add again.`
+        : byPhone && byEmail
+          ? `Phone belongs to ${byPhone.name} (${byPhone.memberCode}) and email belongs to ${byEmail.name} (${byEmail.memberCode}). Do not add again.`
+          : byPhone
+            ? `Mobile already used by ${byPhone.name} (${byPhone.memberCode}). Do not add again.`
+            : `Email already used by ${byEmail.name} (${byEmail.memberCode}). Do not add again.`
+    );
+    error.status = 409;
+    error.payload = { byPhone: byPhone || null, byEmail: byEmail || null };
+    throw error;
+  }
+};
+
 const populateMember = [
   { path: 'branchId', select: 'name branchCode city' },
   { path: 'createdByTrainerId', select: 'name branchId' },
@@ -105,6 +160,8 @@ const createAdmission = async (req) => {
     throw error;
   }
 
+  await assertUniqueContact(req, { phone: req.body.phone, email: req.body.email });
+
   const plan = await req.models.MembershipPlan.findById(req.body.membershipPlanId);
   if (!plan || plan.status !== 'active') {
     const error = new Error('Membership plan not found');
@@ -166,6 +223,34 @@ const createAdmission = async (req) => {
   return req.models.Member.findById(member._id).populate(populateMember);
 };
 
+exports.lookupMember = asyncHandler(async (req, res) => {
+  const phone = String(req.query.phone || '').trim();
+  const email = String(req.query.email || '').trim();
+
+  if (!phone && !email) {
+    return res.status(400).json({ message: 'Provide phone or email to look up' });
+  }
+
+  const [byPhone, byEmail] = await Promise.all([
+    phone ? findMemberByPhone(req.models.Member, phone) : null,
+    email ? findMemberByEmail(req.models.Member, email) : null,
+  ]);
+
+  const enrich = (item) =>
+    item
+      ? {
+          ...item,
+          membershipStatus:
+            item.status === 'inactive' ? 'inactive' : computeMembershipStatus(item.expiryDate),
+        }
+      : null;
+
+  res.json({
+    byPhone: enrich(byPhone),
+    byEmail: enrich(byEmail),
+  });
+});
+
 exports.listMembers = asyncHandler(async (req, res) => {
   const { page, limit, skip } = parsePagination(req);
   const query = buildMemberQuery(req);
@@ -205,10 +290,12 @@ exports.createMember = asyncHandler(async (req, res) => {
 });
 
 exports.updateMember = asyncHandler(async (req, res) => {
-  const member = await req.models.Member.findOne({
-    _id: req.params.id,
-    ...req.branchFilter,
-  });
+  const memberQuery =
+    req.user.role === 'OWNER'
+      ? { _id: req.params.id }
+      : { _id: req.params.id, ...req.branchFilter };
+
+  const member = await req.models.Member.findOne(memberQuery);
   if (!member) return res.status(404).json({ message: 'Member not found' });
 
   if (req.user.role === 'TRAINER') {
@@ -216,10 +303,22 @@ exports.updateMember = asyncHandler(async (req, res) => {
     delete req.body.createdByTrainerId;
   }
 
-  if (req.body.assignedTrainerId) {
-    await assertSameBranchTrainer(req, req.body.assignedTrainerId, member.branchId);
-    member.assignedTrainerId = req.body.assignedTrainerId;
+  if (req.body.assignedTrainerId !== undefined) {
+    if (req.body.assignedTrainerId) {
+      await assertSameBranchTrainer(req, req.body.assignedTrainerId, member.branchId);
+      member.assignedTrainerId = req.body.assignedTrainerId;
+    } else {
+      member.assignedTrainerId = null;
+    }
   }
+
+  const nextPhone = req.body.phone !== undefined ? req.body.phone : member.phone;
+  const nextEmail = req.body.email !== undefined ? req.body.email : member.email;
+  await assertUniqueContact(req, {
+    phone: nextPhone,
+    email: nextEmail,
+    excludeId: member._id,
+  });
 
   const allowed = [
     'name',

@@ -28,7 +28,7 @@ api.interceptors.request.use((config) => {
   if (token) config.headers.Authorization = `Bearer ${token}`;
   const role = roleGetter();
   const branch = branchGetter();
-  if (role === 'OWNER' && branch && branch !== 'ALL') {
+  if (role === 'OWNER' && branch && branch !== 'ALL' && !config.headers['X-Branch-Id']) {
     config.headers['X-Branch-Id'] = branch;
   }
   return config;

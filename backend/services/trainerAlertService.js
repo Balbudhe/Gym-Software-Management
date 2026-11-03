@@ -1,5 +1,7 @@
 const { sendOwnerAlertEmail } = require('./emailService');
-const { locationLabel, mapsUrl } = require('../utils/geoLocation');
+const { safeSendSms, isSmsConfigured } = require('./smsService');
+const { isTextbeeConfigured, safeSendTextbeeSms } = require('./textbeeService');
+const { locationLabel, mapsUrl, GEOFENCE_METERS } = require('../utils/geoLocation');
 
 const formatWhen = (value) =>
   value
@@ -13,6 +15,24 @@ const formatWhen = (value) =>
     : '—';
 
 const ownerEmail = (gym) => gym?.email || '';
+const ownerPhone = (gym) => String(gym?.phone || '').trim();
+
+const sendOwnerSms = async ({ gym, message }) => {
+  const to = ownerPhone(gym);
+  if (!to) {
+    console.warn('Owner SMS skipped: gym phone is not set');
+    return false;
+  }
+  if (isTextbeeConfigured()) {
+    const result = await safeSendTextbeeSms({ to, message });
+    return Boolean(result?.sent);
+  }
+  if (isSmsConfigured()) {
+    return safeSendSms({ to, message });
+  }
+  console.warn('Owner SMS skipped: TextBee / SMS provider is not configured');
+  return false;
+};
 
 const notifyTrainerLeftGym = async ({ gym, trainer, attendance, currentLocation, distance }) => {
   const name = trainer?.name || 'A trainer';
@@ -33,7 +53,14 @@ const notifyTrainerLeftGym = async ({ gym, trainer, attendance, currentLocation,
       <strong>Detected at:</strong> ${formatWhen(new Date())}</p>
     </div>
   `;
-  await sendOwnerAlertEmail({ to: ownerEmail(gym), subject, html, text });
+  const sms = `${name} left check-in area (>${GEOFENCE_METERS}m). Distance now: ${meters}. Location: ${currentPlace}. ${mapsUrl(currentLocation) || ''}`.trim();
+
+  await Promise.all([
+    sendOwnerAlertEmail({ to: ownerEmail(gym), subject, html, text }).catch((error) => {
+      console.error('Owner leave-gym email failed:', error.message);
+    }),
+    sendOwnerSms({ gym, message: sms }),
+  ]);
 };
 
 const notifyTrainerLoggedOutDuringShift = async ({ gym, trainer, attendance, reason }) => {
@@ -51,7 +78,14 @@ const notifyTrainerLoggedOutDuringShift = async ({ gym, trainer, attendance, rea
       <p>They have not checked out yet.</p>
     </div>
   `;
-  await sendOwnerAlertEmail({ to: ownerEmail(gym), subject, html, text });
+  const sms = `${name} ${reasonLabel} while still checked in (${formatWhen(new Date())}).`;
+
+  await Promise.all([
+    sendOwnerAlertEmail({ to: ownerEmail(gym), subject, html, text }).catch((error) => {
+      console.error('Owner logout email failed:', error.message);
+    }),
+    sendOwnerSms({ gym, message: sms }),
+  ]);
 };
 
 const safeNotify = async (fn) => {

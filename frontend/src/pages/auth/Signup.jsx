@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import FormField from '../../components/forms/FormField';
+import PasswordInput from '../../components/forms/PasswordInput';
 
 export default function Signup() {
   const { user, signup } = useAuth();
@@ -49,7 +50,7 @@ export default function Signup() {
             <input {...register('phone')} />
           </FormField>
           <FormField label="Password" error={errors.password?.message}>
-            <input type="password" {...register('password', { required: 'Min 8 characters', minLength: { value: 8, message: 'Min 8 characters' } })} />
+            <PasswordInput {...register('password', { required: 'Min 8 characters', minLength: { value: 8, message: 'Min 8 characters' } })} />
           </FormField>
           <div className="sm:col-span-2">
             <button type="submit" disabled={submitting} className="w-full rounded-lg bg-slate-900 py-2.5 text-sm font-medium text-white">

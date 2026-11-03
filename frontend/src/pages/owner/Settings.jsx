@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import PageHeader from '../../components/common/PageHeader';
 import FormField from '../../components/forms/FormField';
+import PasswordInput from '../../components/forms/PasswordInput';
 
 export default function Settings() {
   const { user, setUser } = useAuth();
@@ -75,8 +76,8 @@ export default function Settings() {
         </form>
         <form className="space-y-4 rounded-xl border border-slate-200 bg-white p-5" onSubmit={passwordForm.handleSubmit(savePassword)}>
           <h2 className="text-sm font-semibold">Change password</h2>
-          <FormField label="Current password"><input type="password" {...passwordForm.register('currentPassword', { required: true })} /></FormField>
-          <FormField label="New password"><input type="password" {...passwordForm.register('newPassword', { required: true, minLength: 8 })} /></FormField>
+          <FormField label="Current password"><PasswordInput {...passwordForm.register('currentPassword', { required: true })} /></FormField>
+          <FormField label="New password"><PasswordInput {...passwordForm.register('newPassword', { required: true, minLength: 8 })} /></FormField>
           <button type="submit" className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">Update password</button>
         </form>
       </div>

@@ -11,9 +11,16 @@ import Spinner from '../common/Spinner';
 function ShiftBanner() {
   const shift = useTrainerShift();
   if (!shift?.onShift) return null;
+  if (shift.outsideGym) {
+    return (
+      <div className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-950">
+        You are more than 200m from your check-in location. The gym owner has been notified by SMS.
+      </div>
+    );
+  }
   return (
     <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-900">
-      Shift in progress. Check out before you leave. Logout stays locked until then.
+      Shift in progress. Stay within 200m of check-in. Check out before you leave — logout stays locked until then.
     </div>
   );
 }

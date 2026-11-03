@@ -56,7 +56,7 @@ export function TrainerShiftProvider({ children }) {
         setItem(data.item || null);
         if (data.alertSent && !alertedRef.current) {
           alertedRef.current = true;
-          toast.push('You left the check-in area. The gym owner has been notified.', 'error');
+          toast.push('You left the 200m check-in area. Owner notified by SMS.', 'error');
         }
         if (!data.outsideGym) alertedRef.current = false;
       } catch {

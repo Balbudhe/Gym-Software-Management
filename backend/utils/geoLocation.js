@@ -73,8 +73,12 @@ const distanceMeters = (from, to) => {
 const isOutsideCheckInArea = (checkInLocation, currentLocation) => {
   const distance = distanceMeters(checkInLocation, currentLocation);
   if (distance == null) return { outside: false, distance: null, radius: GEOFENCE_METERS };
-  const accuracyBuffer = (Number(checkInLocation.accuracy) || 0) + (Number(currentLocation.accuracy) || 0);
-  const radius = Math.max(GEOFENCE_METERS, accuracyBuffer + 50);
+  // Keep alert threshold near 200m; allow only a small GPS cushion so jitter does not spam alerts.
+  const accuracyCushion = Math.min(
+    30,
+    ((Number(checkInLocation.accuracy) || 0) + (Number(currentLocation.accuracy) || 0)) / 4
+  );
+  const radius = GEOFENCE_METERS + accuracyCushion;
   return { outside: distance > radius, distance, radius };
 };
 

@@ -10,9 +10,11 @@ import Skeleton from '../../components/common/Skeleton';
 import DataTable from '../../components/tables/DataTable';
 import FilterBar, { FilterField } from '../../components/filters/FilterBar';
 import Modal from '../../components/common/Modal';
+import AuthImage from '../../components/common/AuthImage';
+import ImageLightbox from '../../components/common/ImageLightbox';
 import { statusBadge } from '../../components/common/Badge';
 import SendReminderButton from '../../components/members/SendReminderButton';
-import { formatDate } from '../../utils/format';
+import { formatDate, initials, cn } from '../../utils/format';
 import { trainerOptionLabel } from '../../utils/batches';
 
 const presetFromPath = (path) => {
@@ -34,6 +36,7 @@ export default function OwnerMembers() {
   const [page, setPage] = useState(1);
   const [assigning, setAssigning] = useState(null);
   const [assignedTrainerId, setAssignedTrainerId] = useState('');
+  const [lightbox, setLightbox] = useState(null);
   const [filters, setFilters] = useState({
     search: '',
     createdByTrainerId: '',
@@ -154,6 +157,33 @@ export default function OwnerMembers() {
           <DataTable
             rows={rows}
             columns={[
+              {
+                key: 'photo',
+                header: 'Photo',
+                render: (r) =>
+                  r.profilePhoto ? (
+                    <button
+                      type="button"
+                      onClick={() => setLightbox({ src: r.profilePhoto, alt: r.name || 'Member photo' })}
+                      className="block overflow-hidden rounded-full p-0 transition hover:ring-2 hover:ring-brand-500/40"
+                      title="View photo"
+                    >
+                      <AuthImage
+                        src={r.profilePhoto}
+                        alt={r.name}
+                        className="h-10 w-10 rounded-full object-cover"
+                      />
+                    </button>
+                  ) : (
+                    <div
+                      className={cn(
+                        'flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white'
+                      )}
+                    >
+                      {initials(r.name)}
+                    </div>
+                  ),
+              },
               { key: 'memberCode', header: 'Member ID' },
               { key: 'name', header: 'Member' },
               { key: 'branch', header: 'Branch', render: (r) => r.branchId?.name },
@@ -232,6 +262,12 @@ export default function OwnerMembers() {
               Save
             </button>
           </Modal>
+          <ImageLightbox
+            open={!!lightbox}
+            src={lightbox?.src}
+            alt={lightbox?.alt}
+            onClose={() => setLightbox(null)}
+          />
         </>
       )}
     </div>
