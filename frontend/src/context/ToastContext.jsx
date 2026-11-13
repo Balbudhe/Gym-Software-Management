@@ -17,11 +17,11 @@ export const ToastProvider = ({ children }) => {
   return (
     <ToastContext.Provider value={{ push }}>
       {children}
-      <div className="fixed right-4 top-4 z-[80] flex w-[min(28rem,calc(100vw-2rem))] flex-col gap-2">
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-[80] flex flex-col items-center gap-2 px-3 lg:inset-x-auto lg:bottom-auto lg:right-4 lg:top-4 lg:w-[min(28rem,calc(100vw-2rem))] lg:items-stretch lg:px-0">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`rounded-lg border px-4 py-3 text-sm leading-5 shadow-lg ${
+            className={`pointer-events-auto w-full max-w-md rounded-2xl border px-4 py-3 text-sm leading-5 shadow-lg lg:max-w-none lg:rounded-lg ${
               toast.type === 'error'
                 ? 'border-red-200 bg-red-50 text-red-800'
                 : 'border-emerald-200 bg-white text-slate-800'

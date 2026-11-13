@@ -14,6 +14,7 @@ import AuthImage from '../../components/common/AuthImage';
 import ImageLightbox from '../../components/common/ImageLightbox';
 import { statusBadge } from '../../components/common/Badge';
 import SendReminderButton from '../../components/members/SendReminderButton';
+import MobileCard, { MobileCardActions, MobileCardHeader, MobileCardMeta } from '../../components/mobile/MobileCard';
 import { formatDate, initials, cn } from '../../utils/format';
 import { trainerOptionLabel } from '../../utils/batches';
 
@@ -82,6 +83,9 @@ export default function OwnerMembers() {
       }
     };
     load();
+    const onRefresh = () => load();
+    window.addEventListener('app:refresh', onRefresh);
+    return () => window.removeEventListener('app:refresh', onRefresh);
   }, [params]);
 
   return (
@@ -90,7 +94,10 @@ export default function OwnerMembers() {
         title={preset.title}
         subtitle="Filters combine with the global branch selector"
         actions={
-          <Link to="/owner/admissions/new" className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">
+          <Link
+            to="/owner/admissions/new"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white"
+          >
             New admission
           </Link>
         }
@@ -156,6 +163,68 @@ export default function OwnerMembers() {
         <>
           <DataTable
             rows={rows}
+            mobileRender={(r) => (
+              <MobileCard>
+                <MobileCardHeader
+                  title={r.name}
+                  subtitle={`${r.memberCode || '—'} · ${r.phone || 'No phone'}`}
+                  meta={statusBadge(r.status === 'inactive' ? 'inactive' : r.membershipStatus || r.status)}
+                  avatar={
+                    r.profilePhoto ? (
+                      <button
+                        type="button"
+                        onClick={() => setLightbox({ src: r.profilePhoto, alt: r.name || 'Member photo' })}
+                        className="overflow-hidden rounded-full"
+                      >
+                        <AuthImage src={r.profilePhoto} alt={r.name} className="h-12 w-12 rounded-full object-cover" />
+                      </button>
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
+                        {initials(r.name)}
+                      </div>
+                    )
+                  }
+                />
+                <MobileCardMeta
+                  items={[
+                    { label: 'Branch', value: r.branchId?.name },
+                    { label: 'Plan', value: r.membershipId?.membershipPlanId?.name },
+                    { label: 'Trainer', value: r.assignedTrainerId?.name || '—' },
+                    { label: 'Expiry', value: formatDate(r.expiryDate) },
+                  ]}
+                />
+                <MobileCardActions>
+                  <SendReminderButton member={r} />
+                  <button
+                    type="button"
+                    className="min-h-10 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-brand-700"
+                    onClick={() => {
+                      setAssigning(r);
+                      setAssignedTrainerId(r.assignedTrainerId?._id || '');
+                    }}
+                  >
+                    Assign
+                  </button>
+                  <button
+                    type="button"
+                    className="min-h-10 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600"
+                    onClick={async () => {
+                      const nextStatus = r.status === 'inactive' ? 'active' : 'inactive';
+                      try {
+                        await api.put(`/members/${r._id}`, { status: nextStatus });
+                        toast.push(nextStatus === 'inactive' ? 'Member set inactive. Reminders stopped.' : 'Member activated');
+                        const { data } = await api.get('/members', { params });
+                        setRows(data.items || []);
+                      } catch (error) {
+                        toast.push(error.response?.data?.message || 'Could not update status', 'error');
+                      }
+                    }}
+                  >
+                    {r.status === 'inactive' ? 'Activate' : 'Deactivate'}
+                  </button>
+                </MobileCardActions>
+              </MobileCard>
+            )}
             columns={[
               {
                 key: 'photo',
@@ -246,7 +315,7 @@ export default function OwnerMembers() {
             </select>
             <button
               type="button"
-              className="mt-4 w-full rounded-lg bg-slate-900 py-2 text-sm text-white"
+              className="mt-4 min-h-11 w-full rounded-xl bg-slate-900 py-2.5 text-sm font-medium text-white"
               onClick={async () => {
                 try {
                   await api.patch(`/members/${assigning._id}/assign-trainer`, { assignedTrainerId });

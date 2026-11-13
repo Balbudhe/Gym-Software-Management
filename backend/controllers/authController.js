@@ -151,29 +151,59 @@ exports.signup = asyncHandler(async (req, res) => {
   });
 });
 
-exports.login = asyncHandler(async (req, res) => {
-  const { slug, email, password } = req.body;
-  if (!slug || !email || !password) {
-    return res.status(400).json({ message: 'Gym code, email and password are required' });
-  }
+const findAccountByEmail = async (email) => {
+  const normalizedEmail = String(email || '').toLowerCase().trim();
+  if (!normalizedEmail) return null;
 
   const GymModel = Gym();
-  const gym = await GymModel.findOne({ slug: String(slug).toLowerCase().trim() });
-  if (!gym || gym.status !== 'active') {
-    return res.status(401).json({ message: 'Invalid gym code or credentials' });
+  const tried = new Set();
+
+  const tryGym = async (gym) => {
+    if (!gym || gym.status !== 'active') return null;
+    const key = String(gym._id);
+    if (tried.has(key)) return null;
+    tried.add(key);
+
+    try {
+      const connection = await getGymConnection(gym._id);
+      const models = registerGymModels(connection);
+      const user = await models.User.findOne({ email: normalizedEmail }).select('+password');
+      if (!user) return null;
+      return { gym, user, models };
+    } catch {
+      return null;
+    }
+  };
+
+  // Owners usually match the gym's platform email — check that first.
+  const ownerGym = await GymModel.findOne({ email: normalizedEmail, status: 'active' });
+  const ownerHit = await tryGym(ownerGym);
+  if (ownerHit) return ownerHit;
+
+  const gyms = await GymModel.find({ status: 'active' }).select('_id name slug status email');
+  for (const gym of gyms) {
+    const hit = await tryGym(gym);
+    if (hit) return hit;
   }
 
-  const connection = await getGymConnection(gym._id);
-  const models = registerGymModels(connection);
+  return null;
+};
 
-  const user = await models.User.findOne({ email: String(email).toLowerCase() }).select('+password');
-  if (!user || !user.isActive) {
-    return res.status(401).json({ message: 'Invalid gym code or credentials' });
+exports.login = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email and password are required' });
   }
 
+  const account = await findAccountByEmail(email);
+  if (!account || !account.user.isActive) {
+    return res.status(401).json({ message: 'Invalid email or password' });
+  }
+
+  const { gym, user, models } = account;
   const ok = await bcrypt.compare(password, user.password);
   if (!ok) {
-    return res.status(401).json({ message: 'Invalid gym code or credentials' });
+    return res.status(401).json({ message: 'Invalid email or password' });
   }
 
   user.lastLogin = new Date();
@@ -239,23 +269,20 @@ exports.changePassword = asyncHandler(async (req, res) => {
 });
 
 exports.forgotPassword = asyncHandler(async (req, res) => {
-  const { slug, email } = req.body;
-  if (!slug || !email) {
-    return res.status(400).json({ message: 'Gym code and email are required' });
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ message: 'Email is required' });
   }
 
   const genericMessage =
-    'If an account exists for that gym code and email, a password reset link has been sent.';
+    'If an account exists for that email, a password reset link has been sent.';
 
-  const GymModel = Gym();
-  const gym = await GymModel.findOne({ slug: String(slug).toLowerCase().trim() });
-  if (!gym || gym.status !== 'active') {
+  const account = await findAccountByEmail(email);
+  if (!account) {
     return res.json({ message: genericMessage });
   }
 
-  const connection = await getGymConnection(gym._id);
-  const models = registerGymModels(connection);
-  const user = await models.User.findOne({ email: String(email).toLowerCase().trim() });
+  const { gym, user } = account;
 
   if (!user || !user.isActive) {
     return res.json({ message: genericMessage });

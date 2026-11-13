@@ -4,17 +4,67 @@
 
 :root {
   color-scheme: light;
+  --app-header-offset: env(safe-area-inset-top);
+  --app-bottom-nav: 4.25rem;
+}
+
+html,
+body,
+#root {
+  height: 100%;
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  background: #f8fafc;
+}
+
+body.standalone-app {
+  user-select: none;
+}
+
+body.standalone-app input,
+body.standalone-app textarea,
+body.standalone-app select {
+  user-select: text;
+}
+
+.app-shell {
+  padding-top: env(safe-area-inset-top);
+  background: #f8fafc;
+}
+
+.app-header {
+  padding-top: 0.15rem;
+}
+
+.app-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
+}
+
+.mobile-bottom-nav {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 50;
+  border-top: 1px solid rgb(226 232 240 / 0.95);
+  background: rgb(255 255 255 / 0.96);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 -8px 24px rgb(15 23 42 / 0.06);
 }
 
 input,
 select,
 textarea {
-  @apply rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20;
+  @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20;
+  font-size: 16px; /* prevent iOS zoom on focus */
+  min-height: 2.75rem;
 }
 
 button:disabled {
@@ -22,7 +72,7 @@ button:disabled {
 }
 
 .table-wrap {
-  @apply overflow-x-auto rounded-xl border border-slate-200 bg-white;
+  @apply -mx-1 overflow-x-auto rounded-xl border border-slate-200 bg-white sm:mx-0;
 }
 
 table.data {
@@ -30,13 +80,42 @@ table.data {
 }
 
 table.data th {
-  @apply whitespace-nowrap border-b border-slate-100 bg-slate-50 px-4 py-3 font-medium text-slate-500;
+  @apply whitespace-nowrap border-b border-slate-100 bg-slate-50 px-3 py-3 font-medium text-slate-500 sm:px-4;
 }
 
 table.data td {
-  @apply whitespace-nowrap border-b border-slate-100 px-4 py-3 text-slate-700;
+  @apply whitespace-nowrap border-b border-slate-100 px-3 py-3 text-slate-700 sm:px-4;
 }
 
 table.data tr:hover td {
   @apply bg-slate-50/80;
+}
+
+@media (max-width: 1023px) {
+  .table-wrap {
+    border-radius: 1rem;
+  }
+
+  .page-card,
+  .rounded-2xl {
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  }
+
+  /* Comfortable tap targets on phones */
+  a,
+  button {
+    touch-action: manipulation;
+  }
+
+  .data th,
+  .data td {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
+
+@supports (padding: max(0px)) {
+  .mobile-bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }

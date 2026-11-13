@@ -338,7 +338,7 @@ export default function OwnerTrainers() {
 
           <div className="flex items-start gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
             <Mail size={14} className="mt-0.5 shrink-0" />
-            The trainer will sign in with the gym code plus this email and password.
+            The trainer will sign in with this email and password.
           </div>
 
           <div className="flex gap-2 pt-1">

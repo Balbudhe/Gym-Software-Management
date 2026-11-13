@@ -13,6 +13,7 @@ import FilterBar, { FilterField } from '../../components/filters/FilterBar';
 import Modal from '../../components/common/Modal';
 import FormField from '../../components/forms/FormField';
 import Badge from '../../components/common/Badge';
+import MobileCard, { MobileCardHeader, MobileCardMeta } from '../../components/mobile/MobileCard';
 import { formatDateTime } from '../../utils/format';
 
 const methodBadge = (method) =>
@@ -103,7 +104,7 @@ export default function OwnerPayments() {
         actions={
           <button
             type="button"
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white sm:w-auto"
             onClick={() => setOpen(true)}
           >
             Record payment
@@ -167,6 +168,23 @@ export default function OwnerPayments() {
         <>
           <DataTable
             rows={rows}
+            mobileRender={(r) => (
+              <MobileCard>
+                <MobileCardHeader
+                  title={r.memberId?.name || '—'}
+                  subtitle={r.memberId?.memberCode ? `${r.memberId.memberCode} · ${r.memberId?.phone || '—'}` : r.memberId?.phone || undefined}
+                  meta={methodBadge(r.method)}
+                />
+                <MobileCardMeta
+                  items={[
+                    { label: 'Amount', value: money(r.amount) },
+                    { label: 'Date', value: formatDateTime(r.paidAt || r.createdAt) },
+                    { label: 'Branch', value: r.branchId?.name },
+                    { label: 'Collected by', value: r.collectedBy || (r.recordedByRole === 'TRAINER' ? r.createdByTrainerId?.name || 'Trainer' : 'Admin') },
+                  ]}
+                />
+              </MobileCard>
+            )}
             columns={[
               { key: 'date', header: 'Date', render: (r) => formatDateTime(r.paidAt || r.createdAt) },
               { key: 'member', header: 'Member', render: (r) => r.memberId?.name || '—' },

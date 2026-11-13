@@ -7,6 +7,7 @@ import Pagination from '../../components/common/Pagination';
 import Skeleton from '../../components/common/Skeleton';
 import DataTable from '../../components/tables/DataTable';
 import FilterBar, { FilterField } from '../../components/filters/FilterBar';
+import MobileCard, { MobileCardHeader, MobileCardMeta } from '../../components/mobile/MobileCard';
 import { formatDate } from '../../utils/format';
 
 export default function OwnerAdmissions() {
@@ -42,7 +43,14 @@ export default function OwnerAdmissions() {
     <div>
       <PageHeader
         title="Admissions"
-        actions={<Link to="/owner/admissions/new" className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">New admission</Link>}
+        actions={
+          <Link
+            to="/owner/admissions/new"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white sm:w-auto"
+          >
+            New admission
+          </Link>
+        }
       />
       <FilterBar>
         <FilterField label="Added By Trainer">
@@ -62,6 +70,22 @@ export default function OwnerAdmissions() {
         <>
           <DataTable
             rows={rows}
+            mobileRender={(r) => (
+              <MobileCard>
+                <MobileCardHeader
+                  title={r.name}
+                  subtitle={r.membershipId?.membershipPlanId?.name || '—'}
+                />
+                <MobileCardMeta
+                  items={[
+                    { label: 'Branch', value: r.branchId?.name },
+                    { label: 'Added by', value: r.createdByTrainerId?.name || 'Owner' },
+                    { label: 'Trainer', value: r.assignedTrainerId?.name || '—' },
+                    { label: 'Date', value: formatDate(r.createdAt) },
+                  ]}
+                />
+              </MobileCard>
+            )}
             columns={[
               { key: 'branch', header: 'Branch', render: (r) => r.branchId?.name },
               { key: 'member', header: 'Member', render: (r) => r.name },

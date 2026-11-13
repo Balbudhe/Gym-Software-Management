@@ -14,6 +14,7 @@ import ImageLightbox from '../../components/common/ImageLightbox';
 import Modal from '../../components/common/Modal';
 import { statusBadge } from '../../components/common/Badge';
 import SendReminderButton from '../../components/members/SendReminderButton';
+import MobileCard, { MobileCardActions, MobileCardHeader, MobileCardMeta } from '../../components/mobile/MobileCard';
 import { canSendMembershipReminder } from '../../utils/membershipReminder';
 import { formatDate, initials, cn } from '../../utils/format';
 
@@ -137,6 +138,9 @@ export default function MyMembers({ status = '' }) {
       }
     };
     load();
+    const onRefresh = () => load();
+    window.addEventListener('app:refresh', onRefresh);
+    return () => window.removeEventListener('app:refresh', onRefresh);
   }, [user, page, debouncedSearch, debouncedHealthIssueFilter, status, mine]);
 
   const stats = useMemo(() => {
@@ -235,7 +239,7 @@ export default function MyMembers({ status = '' }) {
         {!status ? (
           <Link
             to="/trainer/admissions/new"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800 sm:w-auto"
           >
             <UserPlus size={16} />
             New admission
@@ -341,7 +345,36 @@ export default function MyMembers({ status = '' }) {
         />
       ) : (
         <>
-          <DataTable rows={rows} columns={columns} onRowClick={setSelected} />
+          <DataTable
+            rows={rows}
+            columns={columns}
+            onRowClick={setSelected}
+            mobileRender={(r) => (
+              <MobileCard onClick={() => setSelected(r)}>
+                <MobileCardHeader
+                  title={r.name}
+                  subtitle={`${r.memberCode || '—'} · ${r.phone || 'No phone'}`}
+                  meta={statusBadge(r.status === 'inactive' ? 'inactive' : r.membershipStatus || r.status)}
+                  avatar={<MemberPhoto member={r} onOpen={setLightbox} className="h-12 w-12 rounded-full object-cover" />}
+                />
+                <MobileCardMeta
+                  items={[
+                    { label: 'Plan', value: r.membershipId?.membershipPlanId?.name },
+                    { label: 'Expiry', value: formatDate(r.expiryDate) },
+                    { label: 'Health', value: r.healthIssue || 'None' },
+                    { label: 'Added by', value: r.createdByTrainerId?.name || 'Owner' },
+                  ]}
+                />
+                {canSendMembershipReminder(r) ? (
+                  <MobileCardActions>
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <SendReminderButton member={r} compact />
+                    </div>
+                  </MobileCardActions>
+                ) : null}
+              </MobileCard>
+            )}
+          />
           <Pagination pagination={pagination} onPage={setPage} />
         </>
       )}

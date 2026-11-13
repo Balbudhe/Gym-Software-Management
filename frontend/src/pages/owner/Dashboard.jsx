@@ -83,7 +83,7 @@ function KpiCard({ label, value, hint, icon: Icon, to, tone = 'slate' }) {
       <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">{value ?? 0}</p>
       {hint ? <p className="mt-1 text-xs leading-5 text-slate-500">{hint}</p> : null}
       {to ? (
-        <p className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-700 opacity-0 transition group-hover:opacity-100">
+        <p className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-700 opacity-100 sm:opacity-0 sm:transition sm:group-hover:opacity-100">
           View <ArrowUpRight size={12} />
         </p>
       ) : null}

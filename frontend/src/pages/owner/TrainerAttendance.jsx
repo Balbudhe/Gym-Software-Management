@@ -12,6 +12,7 @@ import Modal from '../../components/common/Modal';
 import { formatDateTime } from '../../utils/format';
 import AttendanceLocation from '../../components/attendance/AttendanceLocation';
 import AttendanceStatus from '../../components/attendance/AttendanceStatus';
+import MobileCard, { MobileCardActions, MobileCardHeader, MobileCardMeta } from '../../components/mobile/MobileCard';
 
 export default function TrainerAttendance() {
   const { selectedBranch } = useBranch();
@@ -100,6 +101,51 @@ export default function TrainerAttendance() {
         <>
           <DataTable
             rows={rows}
+            mobileRender={(r) => (
+              <MobileCard>
+                <MobileCardHeader
+                  title={r.trainerId?.name || '—'}
+                  subtitle={r.branchId?.name}
+                  meta={
+                    r.checkInTime && !r.checkOutTime && r.outsideGym ? (
+                      <Badge tone="amber">Left check-in area</Badge>
+                    ) : (
+                      statusBadge(r.status)
+                    )
+                  }
+                />
+                <MobileCardMeta
+                  items={[
+                    { label: 'Check in', value: r.checkInLabel || (r.checkInTime ? formatDateTime(r.checkInTime) : '—') },
+                    { label: 'Check out', value: r.checkOutLabel || (r.checkOutTime ? formatDateTime(r.checkOutTime) : '—') },
+                    { label: 'Hours', value: r.workingHours || '—' },
+                    { label: 'Status', value: r.status?.replace(/_/g, ' ') },
+                  ]}
+                />
+                {r.checkInPhoto || r.checkOutPhoto ? (
+                  <MobileCardActions>
+                    {r.checkInPhoto ? (
+                      <button
+                        type="button"
+                        className="min-h-10 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700"
+                        onClick={() => setSelectedPhoto({ src: r.checkInPhoto, alt: 'Check in photo' })}
+                      >
+                        Check-in photo
+                      </button>
+                    ) : null}
+                    {r.checkOutPhoto ? (
+                      <button
+                        type="button"
+                        className="min-h-10 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700"
+                        onClick={() => setSelectedPhoto({ src: r.checkOutPhoto, alt: 'Check out photo' })}
+                      >
+                        Check-out photo
+                      </button>
+                    ) : null}
+                  </MobileCardActions>
+                ) : null}
+              </MobileCard>
+            )}
             columns={[
               { key: 'branch', header: 'Branch', render: (r) => r.branchId?.name },
               { key: 'trainer', header: 'Trainer', render: (r) => r.trainerId?.name },

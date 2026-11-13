@@ -5,6 +5,8 @@ import { useBranch } from '../../context/BranchContext';
 import PageHeader from '../../components/common/PageHeader';
 import Skeleton from '../../components/common/Skeleton';
 import DataTable from '../../components/tables/DataTable';
+import Badge from '../../components/common/Badge';
+import MobileCard, { MobileCardHeader, MobileCardMeta } from '../../components/mobile/MobileCard';
 
 const titles = {
   members: ['Member Report', '/reports/members'],
@@ -66,10 +68,71 @@ export default function Reports() {
     ],
   };
 
+  const reportMobileRender = (r) => {
+    if (kind === 'admissions') {
+      return (
+        <MobileCard>
+          <MobileCardHeader title={r.trainer || '—'} subtitle={r.branch} />
+          <MobileCardMeta items={[{ label: 'Admissions', value: r.admissions }]} />
+        </MobileCard>
+      );
+    }
+    if (kind === 'trainers') {
+      return (
+        <MobileCard>
+          <MobileCardHeader title={r.trainer || '—'} subtitle={r.branch} />
+          <MobileCardMeta
+            items={[
+              { label: 'Admissions', value: r.admissions },
+              { label: 'Assigned', value: r.assigned },
+              { label: 'Active', value: r.active },
+            ]}
+          />
+        </MobileCard>
+      );
+    }
+    if (kind === 'attendance') {
+      return (
+        <MobileCard>
+          <MobileCardHeader
+            title={r.trainer || '—'}
+            subtitle={r.branch}
+            meta={<Badge tone="blue">{r.attendancePercent}%</Badge>}
+          />
+          <MobileCardMeta
+            items={[
+              { label: 'Present', value: r.present },
+              { label: 'Absent', value: r.absent },
+              { label: 'Late', value: r.late },
+              { label: 'Working hrs', value: r.workingHours },
+            ]}
+          />
+        </MobileCard>
+      );
+    }
+    return (
+      <MobileCard>
+        <MobileCardHeader title={r.branch || '—'} />
+        <MobileCardMeta
+          items={[
+            { label: 'Total', value: r.totalMembers },
+            { label: 'Active', value: r.active },
+            { label: 'Expiring', value: r.expiring },
+            { label: 'Expired', value: r.expired },
+          ]}
+        />
+      </MobileCard>
+    );
+  };
+
   return (
     <div>
       <PageHeader title={title} subtitle="Respects the global branch selector" />
-      {loading ? <Skeleton /> : <DataTable rows={rows} columns={columns[kind] || columns.members} />}
+      {loading ? (
+        <Skeleton />
+      ) : (
+        <DataTable rows={rows} columns={columns[kind] || columns.members} mobileRender={reportMobileRender} />
+      )}
     </div>
   );
 }
